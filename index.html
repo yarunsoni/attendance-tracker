@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Interactive Real-Time Attendance Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Open+Sans&display=swap');
+
+    body, html {
+      margin:0; padding:0; height:100%;
+      font-family: 'Open Sans', sans-serif;
+      color:#333;
+      overflow: hidden;
+      background-image: url('https://user-gen-media-assets.s3.amazonaws.com/gpt4o_images/7291e9ff-c235-48b3-8e8a-0ce59b748f57.png');
+      background-size: cover;
+      background-position: center;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255 255 255 / 0.85);
+      backdrop-filter: blur(12px);
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      max-width: 400px;
+      background: white;
+      margin: 4% auto 0;
+      padding: 25px 30px 32px;
+      border-radius: 16px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+      z-index: 1;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      color: #2f80ed;
+      font-weight: 700;
+      font-size: 2em;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      margin-bottom: 25px;
+      font-size: 0.95em;
+      color: #666;
+      font-weight: 500;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 15px;
+      font-size: 1em;
+      border-radius: 10px;
+      border: 1.5px solid #ccc;
+      margin-bottom: 25px;
+      transition: border-color 0.3s;
+    }
+    input[type="text"]:focus {
+      border-color: #2f80ed;
+      outline: none;
+    }
+
+    button {
+      width: 100%;
+      background: #2f80ed;
+      color: white;
+      font-size: 1.1em;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      padding: 15px 0;
+      box-shadow: 0 5px 15px rgba(47, 128, 237, 0.4);
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:disabled {
+      background-color: #a9c0f3;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    button:hover:not(:disabled) {
+      background-color: #1256c0;
+    }
+
+    #location-display {
+      margin: 20px 0 12px;
+      font-size: 1.1em;
+      font-weight: 600;
+      color: #444;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 28px;
+    }
+
+    #clock-container {
+      font-size: 0.95em;
+      font-weight: 600;
+      color: #2f80ed;
+      margin-bottom: 20px;
+    }
+
+    #status {
+      min-height: 28px;
+      font-weight: 700;
+      font-size: 1em;
+    }
+    .status-success {
+      color: #2d9c2d;
+    }
+    .status-error {
+      color: #cc2d2d;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="main" aria-label="Attendance Tracker">
+    <h1>👨‍💼 Attendance Tracker</h1>
+    <div class="subtitle">Punch In / Out with Live Location</div>
+
+    <div id="clock-container" aria-live="polite" aria-atomic="true"></div>
+
+    <input type="text" id="name" placeholder="Enter your full name" autocomplete="off" aria-required="true" />
+
+    <button id="start-btn">Start Tracking & Submit</button>
+
+    <div id="location-display" aria-live="polite" aria-atomic="true"></div>
+    <div id="status" role="alert" aria-live="assertive" aria-atomic="true"></div>
+  </div>
+
+  <script>
+    const nameInput = document.getElementById('name');
+    const startBtn = document.getElementById('start-btn');
+    const locationDisplay = document.getElementById('location-display');
+    const statusEl = document.getElementById('status');
+    const clockContainer = document.getElementById('clock-container');
+
+    let watchID = null;
+    let userName = '';
+
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwj5mRFW7Ez7A_r4pyAWgsIiiUbF0-D3c16hRTmRQbaP4HECVv1moMRI3mU6SWrucTK2Q/exec';
+
+    // Update clock every second
+    function updateClock() {
+      const now = new Date();
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      const timeStr = now.toLocaleTimeString();
+      const dateStr = now.toLocaleDateString(undefined, options);
+      clockContainer.textContent = `${dateStr} | ${timeStr}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Reverse geocode city/state from lat, lon using OpenStreetMap's Nominatim API
+    async function getCityState(lat, lon) {
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+        if(!response.ok) throw new Error('Failed to fetch location details');
+        const json = await response.json();
+        let city = json.address.city || json.address.town || json.address.village || '';
+        let state = json.address.state || '';
+        return city && state ? `${city}, ${state}` : 'Location info unavailable';
+      } catch {
+        return 'Location info unavailable';
+      }
+    }
+
+    // Send only name, city/state, timestamp to Google Apps Script
+    function sendDataToSheet(location) {
+      const data = {
+        name: userName,
+        location: location,
+        timestamp: new Date().toISOString()
+      };
+      fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }).catch(error => {
+        console.error('Failed to send data:', error);
+      });
+    }
+
+    async function positionUpdated(position) {
+      const lat = position.coords.latitude.toFixed(6);
+      const lon = position.coords.longitude.toFixed(6);
+
+      let cityState = await getCityState(lat, lon);
+
+      locationDisplay.textContent = `📍 Your Location: ${cityState}`;
+
+      sendDataToSheet(cityState);
+
+      statusEl.textContent = '✅ Location updated and saved.';
+      statusEl.className = 'status-success';
+    }
+
+    function positionError(error) {
+      let message = '';
+      switch(error.code) {
+        case error.PERMISSION_DENIED:
+          message = '❌ Permission denied. Please allow location access.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          message = '❌ Location information unavailable.';
+          break;
+        case error.TIMEOUT:
+          message = '❌ Location request timed out.';
+          break;
+        default:
+          message = '❌ An unknown error occurred.';
+      }
+      statusEl.textContent = message;
+      statusEl.className = 'status-error';
+    }
+
+    startBtn.addEventListener('click', () => {
+      userName = nameInput.value.trim();
+      if (!userName) {
+        statusEl.textContent = '❌ Please enter your full name.';
+        statusEl.className = 'status-error';
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        statusEl.textContent = '❌ Geolocation is not supported by your browser.';
+        statusEl.className = 'status-error';
+        return;
+      }
+
+      nameInput.disabled = true;
+      startBtn.disabled = true;
+
+      statusEl.textContent = '⌛ Waiting for location updates...';
+      statusEl.className = '';
+
+      watchID = navigator.geolocation.watchPosition(positionUpdated, positionError, {
+        enableHighAccuracy: true,
+        maximumAge: 30000,
+        timeout: 40000
+      });
+    });
+  </script>
+</body>
+</html>
