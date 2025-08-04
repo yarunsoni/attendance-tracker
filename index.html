@@ -2,107 +2,133 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Interactive Real-Time Attendance Tracker</title>
+  <title>Real-Time Attendance Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Open+Sans&display=swap');
+
+    /* Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
     body, html {
-      margin:0; padding:0; height:100%;
+      margin: 0; padding: 0; height: 100%;
       font-family: 'Open Sans', sans-serif;
-      color:#333;
-      overflow: hidden;
       background-image: url('https://user-gen-media-assets.s3.amazonaws.com/gpt4o_images/7291e9ff-c235-48b3-8e8a-0ce59b748f57.png');
       background-size: cover;
       background-position: center;
       position: relative;
+      color: #333;
+      overflow-y: auto;
     }
+
     body::before {
       content: '';
-      position: absolute;
+      position: fixed;
       inset: 0;
-      background: rgba(255 255 255 / 0.85);
+      background: rgba(255 255 255 / 0.9);
       backdrop-filter: blur(12px);
       z-index: 0;
     }
+
     .container {
       position: relative;
-      max-width: 400px;
+      max-width: 420px;
       background: white;
-      margin: 4% auto 0;
-      padding: 25px 30px 32px;
+      margin: 4% auto 2rem;
+      padding: 2rem 2.5rem 3rem;
       border-radius: 16px;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
       z-index: 1;
       text-align: center;
     }
+
     h1 {
-      margin: 0;
+      margin: 0 0 0.25rem 0;
       color: #2f80ed;
       font-weight: 700;
-      font-size: 2em;
-      margin-bottom: 8px;
+      font-size: 2.25rem;
+      user-select: none;
     }
+
     .subtitle {
-      margin-bottom: 25px;
-      font-size: 0.95em;
-      color: #666;
-      font-weight: 500;
+      margin-bottom: 2rem;
+      font-size: 1.05rem;
+      color: #555;
+      font-weight: 600;
+      user-select: none;
     }
+
+    #clock-container {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #2f80ed;
+      margin-bottom: 1.75rem;
+      user-select: none;
+      min-height: 1.3rem;
+    }
+
     input[type="text"] {
       width: 100%;
-      padding: 14px 15px;
-      font-size: 1em;
+      padding: 14px 16px;
+      font-size: 1rem;
       border-radius: 10px;
       border: 1.5px solid #ccc;
-      margin-bottom: 25px;
-      transition: border-color 0.3s;
+      margin-bottom: 1.8rem;
+      transition: border-color 0.3s ease;
     }
     input[type="text"]:focus {
       border-color: #2f80ed;
       outline: none;
+      box-shadow: 0 0 8px #2f80eda8;
     }
+
     button {
       width: 100%;
       background: #2f80ed;
       color: white;
-      font-size: 1.1em;
+      font-size: 1.15rem;
       font-weight: 700;
       border: none;
       border-radius: 10px;
-      padding: 15px 0;
-      box-shadow: 0 5px 15px rgba(47, 128, 237, 0.4);
+      padding: 16px 0;
+      box-shadow: 0 6px 16px rgba(47, 128, 237, 0.45);
       cursor: pointer;
-      transition: background-color 0.3s;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
     }
     button:disabled {
       background-color: #a9c0f3;
       cursor: not-allowed;
       box-shadow: none;
     }
-    button:hover:not(:disabled) {
+    button:hover:not(:disabled),
+    button:focus:not(:disabled) {
       background-color: #1256c0;
+      box-shadow: 0 8px 22px rgba(18, 86, 192, 0.7);
+      outline: none;
     }
+
     #location-display {
-      margin: 20px 0 12px;
-      font-size: 1.1em;
+      margin: 1.5rem 0 1.25rem;
+      font-size: 1.1rem;
       font-weight: 600;
       color: #444;
+      min-height: 1.4rem;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
-      min-height: 28px;
+      word-break: break-word;
+      user-select: text;
     }
-    #clock-container {
-      font-size: 0.95em;
-      font-weight: 600;
-      color: #2f80ed;
-      margin-bottom: 20px;
-    }
+
     #status {
-      min-height: 28px;
+      min-height: 1.4rem;
       font-weight: 700;
-      font-size: 1em;
+      font-size: 1rem;
+      user-select: none;
     }
     .status-success {
       color: #2d9c2d;
@@ -110,139 +136,187 @@
     .status-error {
       color: #cc2d2d;
     }
+
   </style>
 </head>
 <body>
-  <div class="container" role="main" aria-label="Attendance Tracker">
+  <main class="container" role="main" aria-label="Attendance Tracker">
     <h1>👨‍💼 Attendance Tracker</h1>
-    <div class="subtitle">Punch In / Out with Live Location</div>
+    <div class="subtitle">Punch In / Punch Out with Live Location</div>
     <div id="clock-container" aria-live="polite" aria-atomic="true"></div>
     <input type="text" id="name" placeholder="Enter your full name" autocomplete="off" aria-required="true" />
-    <button id="start-btn">Start Tracking & Submit</button>
-    <div id="location-display" aria-live="polite" aria-atomic="true"></div>
+    <button id="start-btn" aria-live="polite" aria-atomic="true">Loading...</button>
+    <div id="location-display" aria-live="polite" aria-atomic="true" aria-label="Current Location"></div>
     <div id="status" role="alert" aria-live="assertive" aria-atomic="true"></div>
-  </div>
+  </main>
 
   <script>
-    const nameInput = document.getElementById('name');
-    const startBtn = document.getElementById('start-btn');
-    const locationDisplay = document.getElementById('location-display');
-    const statusEl = document.getElementById('status');
-    const clockContainer = document.getElementById('clock-container');
+    (function() {
+      const nameInput = document.getElementById('name');
+      const startBtn = document.getElementById('start-btn');
+      const locationDisplay = document.getElementById('location-display');
+      const statusEl = document.getElementById('status');
+      const clockContainer = document.getElementById('clock-container');
 
-    let userName = '';
-    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwj5mRFW7Ez7A_r4pyAWgsIiiUbF0-D3c16hRTmRQbaP4HECVv1moMRI3mU6SWrucTK2Q/exec';
-
-    function updateClock() {
-      const now = new Date();
-      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-      const timeStr = now.toLocaleTimeString();
-      const dateStr = now.toLocaleDateString(undefined, options);
-      clockContainer.textContent = `${dateStr} | ${timeStr}`;
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
-
-    async function getCityState(lat, lon) {
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
-        if (!response.ok) throw new Error('Failed to fetch location details');
-        const json = await response.json();
-
-        // Get detailed location
-        let road = json.address.road || '';
-        let suburb = json.address.suburb || '';
-        let city = json.address.city || json.address.town || json.address.village || '';
-        let state = json.address.state || '';
-        let postcode = json.address.postcode || '';
-
-        // Combine all parts
-        let parts = [road, suburb, city, state, postcode].filter(Boolean);
-        return parts.join(', ') || 'Location info unavailable';
-
-      } catch {
-        return 'Location info unavailable';
+      // Initialize or validate punchStatus in localStorage
+      let punchStatus = localStorage.getItem('punchStatus');
+      if (punchStatus !== 'in' && punchStatus !== 'out') {
+        punchStatus = 'in';
+        localStorage.setItem('punchStatus', punchStatus);
       }
-    }
 
-    function sendDataToSheet(location) {
-      const data = {
-        name: userName,
-        location: location,
-        timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })  // IST time
-      };
-      fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      }).catch(error => {
-        console.error('Failed to send data:', error);
-      });
-    }
+      const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwj5mRFW7Ez7A_r4pyAWgsIiiUbF0-D3c16hRTmRQbaP4HECVv1moMRI3mU6SWrucTK2Q/exec';
 
-    async function positionUpdated(position) {
-      const lat = position.coords.latitude.toFixed(6);
-      const lon = position.coords.longitude.toFixed(6);
-
-      let cityState = await getCityState(lat, lon);
-      locationDisplay.textContent = `📍 Your Location: ${cityState}`;
-
-      sendDataToSheet(cityState);
-
-      statusEl.textContent = '✅ Location updated and saved.';
-      statusEl.className = 'status-success';
-
-      nameInput.disabled = false;
-      startBtn.disabled = false;
-    }
-
-    function positionError(error) {
-      let message = '';
-      switch(error.code) {
-        case error.PERMISSION_DENIED:
-          message = '❌ Permission denied. Please allow location access.';
-          break;
-        case error.POSITION_UNAVAILABLE:
-          message = '❌ Location information unavailable.';
-          break;
-        case error.TIMEOUT:
-          message = '❌ Location request timed out.';
-          break;
-        default:
-          message = '❌ An unknown error occurred.';
+      // Update clock every second
+      function updateClock() {
+        const now = new Date();
+        const options = {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        };
+        const timeStr = now.toLocaleTimeString([], { hour12: false });
+        const dateStr = now.toLocaleDateString(undefined, options);
+        clockContainer.textContent = `${dateStr} | ${timeStr}`;
       }
-      statusEl.textContent = message;
-      statusEl.className = 'status-error';
-      nameInput.disabled = false;
-      startBtn.disabled = false;
-    }
+      updateClock();
+      setInterval(updateClock, 1000);
 
-    startBtn.addEventListener('click', () => {
-      userName = nameInput.value.trim();
-      if (!userName) {
-        statusEl.textContent = '❌ Please enter your full name.';
+      // Update button label based on punch status
+      function updateButtonLabel() {
+        startBtn.textContent = punchStatus === 'in' ? 'Punch In' : 'Punch Out';
+        startBtn.disabled = false;
+      }
+
+      // Reverse geocode lat/lon to detailed address string using OSM Nominatim
+      async function getCityState(lat, lon) {
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+          if (!response.ok) throw new Error('Failed to fetch location details');
+
+          const json = await response.json();
+          const addr = json.address || {};
+
+          const parts = [
+            addr.house_number ? `${addr.house_number} ` : '' + (addr.road || ''),
+            addr.neighbourhood || addr.suburb || addr.village || addr.town || addr.city || '',
+            addr.county || '',
+            addr.state || '',
+            addr.postcode || '',
+            addr.country || ''
+          ].filter(Boolean);
+
+          return parts.join(', ') || 'Location info unavailable';
+        } catch {
+          return 'Location info unavailable';
+        }
+      }
+
+      // Send punch data to Google Sheet backend
+      function sendDataToSheet(location) {
+        const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
+        const data = {
+          name: nameInput.value.trim(),
+          type: punchStatus === 'in' ? 'Punch In' : 'Punch Out',
+          location,
+          timestamp
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        }).catch(err => {
+          console.warn('Failed to send data:', err);
+        });
+
+        // Toggle punchStatus locally AFTER sending data
+        localStorage.setItem('punchStatus', punchStatus === 'in' ? 'out' : 'in');
+        localStorage.setItem('lastPunchTime', timestamp);
+        localStorage.setItem('lastPunchType', data.type);
+
+        punchStatus = localStorage.getItem('punchStatus');
+        updateButtonLabel();
+
+        statusEl.textContent = '✅ Attendance recorded successfully.';
+        statusEl.className = 'status-success';
+      }
+
+      // Successfully received position
+      async function positionUpdated(position) {
+        const lat = position.coords.latitude.toFixed(6);
+        const lon = position.coords.longitude.toFixed(6);
+
+        const detailedAddress = await getCityState(lat, lon);
+        locationDisplay.textContent = `📍 Your Location: ${detailedAddress}`;
+        locationDisplay.title = detailedAddress;
+
+        sendDataToSheet(detailedAddress);
+
+        nameInput.disabled = false;
+        startBtn.disabled = false;
+      }
+
+      // Geolocation failure
+      function positionError(error) {
+        let message;
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            message = '❌ Permission denied. Please allow location access.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            message = '❌ Location information unavailable.';
+            break;
+          case error.TIMEOUT:
+            message = '❌ Location request timed out.';
+            break;
+          default:
+            message = '❌ An unknown error occurred.';
+        }
+        statusEl.textContent = message;
         statusEl.className = 'status-error';
-        return;
+
+        nameInput.disabled = false;
+        startBtn.disabled = false;
       }
 
-      if (!navigator.geolocation) {
-        statusEl.textContent = '❌ Geolocation is not supported by your browser.';
-        statusEl.className = 'status-error';
-        return;
-      }
+      startBtn.addEventListener('click', () => {
+        const userName = nameInput.value.trim();
+        if (!userName) {
+          statusEl.textContent = '❌ Please enter your full name.';
+          statusEl.className = 'status-error';
+          return;
+        }
 
-      nameInput.disabled = true;
-      startBtn.disabled = true;
+        if (!navigator.geolocation) {
+          statusEl.textContent = '❌ Geolocation is not supported by your browser.';
+          statusEl.className = 'status-error';
+          return;
+        }
 
-      statusEl.textContent = '⌛ Fetching your location...';
-      statusEl.className = '';
+        nameInput.disabled = true;
+        startBtn.disabled = true;
+        statusEl.textContent = '⌛ Fetching your location...';
+        statusEl.className = '';
+        locationDisplay.textContent = '';
 
-      navigator.geolocation.getCurrentPosition(positionUpdated, positionError, {
-        enableHighAccuracy: true,
-        timeout: 10000
+        navigator.geolocation.getCurrentPosition(positionUpdated, positionError, {
+          enableHighAccuracy: true,
+          timeout: 10000
+        });
       });
-    });
+
+      // Initialize UI on load
+      window.addEventListener('load', () => {
+        updateButtonLabel();
+        statusEl.textContent = '';
+        locationDisplay.textContent = '';
+        nameInput.disabled = false;
+      });
+
+    })();
   </script>
 </body>
 </html>
